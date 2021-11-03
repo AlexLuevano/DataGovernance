@@ -6,10 +6,11 @@ import openpyxl
 import pyodbc
 from typing import Optional,List
 import sys
+import os
 
 def browse_files():
        global filename
-       filename = filedialog.askopenfilename(initialdir = "/Downloads", title = "Selecciona un archivo de MDM:", filetypes = ((".csv Files","*.csv*"),("all files","*.*")))
+       filename = filedialog.askopenfilename(initialdir = "/Downloads", title = "Selecciona un archivo de MDM:", filetypes = (("all files","*.*"),(".csv Files","*.csv*")))
        if filename:
               l1 = Label(window, text = "File path: " + filename).pack()
        else:
@@ -18,8 +19,20 @@ def browse_files():
 
 def export_file():
     global export_file_path
-    export_file_path = filedialog.asksaveasfilename(defaultextension = '.xlsx',initialdir = "/Desktop", title = "Guardar archivo como:", filetypes = (("Excel Files","*.xlsx*"),("CSV Files","*.csv*"),("all files","*.*")))
-    mdm.to_excel(export_file_path, index = False, header=True)
+    export_file_path = filedialog.asksaveasfilename(defaultextension = '.xlsx',initialdir = "/Desktop", title = "Guardar archivo como:", filetypes = (("Excel Files","*.xlsx*"),(".csv Files","*.csv*"),("all files","*.*")))
+    with pd.ExcelWriter(export_file_path,engine='openpyxl') as writer:
+        mdm.to_excel(writer, sheet_name='Entities', index=False)
+        query.to_excel(writer, sheet_name='Query',index=False)
+    workbook = writer.book
+    #base = os.path.splitext(export_file_path)[0]
+    #new_name = os.rename(export_file_path,base+'.xlsm')
+    #workbook.filename = new_name
+    #workbook.add_vba_project('./vbaProject.bin')
+    writer.save
+    #writer = pd.ExcelWriter()
+    #mdm.to_excel(writer, sheet_name = 'Entities', index = False, header=True)
+    #query.to_excel(writer, sheet_name = 'Query', index = False, header = True)
+    print('File was succesfully filled and saved on the chosen path')
     window2.destroy()
 
 def db_connect() -> pd.DataFrame:
@@ -33,9 +46,10 @@ def db_connect() -> pd.DataFrame:
         print('Connected successfully to Aurora')
     except:
         raise Exception('Connection to Aurora failed. Ending execution.')
+        sys.exit(1)
     sql = ("""
         SELECT DISTINCT 
-        CAST(A.sku AS VARCHAR) + '|' +  CAST(V.AP_REF AS VARCHAR) + '|' +  A.vendor_id AS [key2]
+        CAST(A.sku AS VARCHAR) + '|' +  CAST(V.AP_REF AS VARCHAR) + '|' +  A.vendor_id AS [key2]    
         , CAST(A.sku AS VARCHAR) + '|' +  CAST(V.AP_REF AS VARCHAR)  [key]
         , A.sku
         , V.AP_REF
@@ -107,13 +121,16 @@ window.mainloop()
 
 print('Reading MDM file...')
 try:
-        mdm = pd.read_excel(f'{filename}', index_col = False,na_filter= False)
+        #wb = openpyxl.load_workbook(f'{filename}',keep_vba=True)
+        #ws = wb['Entities']
+        mdm = pd.read_excel(f'{filename}',sheet_name='Entities', header = 1, index_col = False,na_filter= False)
         skus_list = list(mdm['Stock Keeping Unit'])
         skus_list_string = str(skus_list)
         skus = skus_list_string[1:-1]
-        print('MDM file read successfully')
+        print('MDM file read successfully...')
 except:
         raise Exception('Error at reading MDM file. Please check file and try again. Finishing execution.')
+        sys.exit(1)
 query = db_connect()
 mdm['KEY'] = '=CONCATENATE(INDEX(A:AAB, ROW(), MATCH("Stock Keeping Unit",$2:$2, 0)), "|",MID(INDEX(A:AAB, ROW(), MATCH("Vendor Ownership ID",$2:$2, 0)), 1, FIND("-", INDEX(A:AAB, ROW(), MATCH("Vendor Ownership ID",$2:$2, 0)))-1))'
 mdm['KEY2'] = '=CONCATENATE(INDEX(A:AAB,ROW(),MATCH("Stock Keeping Unit",$2:$2,0)),"|",MID(INDEX(A:AAB,ROW(),MATCH("Vendor Ownership ID",$2:$2,0)),1,FIND("-",INDEX(A:AAB,ROW(),MATCH("Vendor Ownership ID",$2:$2,0)))-1),"|",INDEX(A:AAB,ROW(),MATCH("Vendor DCs.POV ID",$2:$2,0)))'
@@ -148,6 +165,7 @@ mdm['Check Custom Id'] = '=IF(EXACT(IF(VLOOKUP(INDEX(A:ZZ,ROW(),MATCH("KEY2",$2:
 mdm['Check Marketing Flag'] = '=IF(EXACT(INDEX(A:ZZ, ROW(), MATCH("Marketing Flag",$2:$2, 0)), "Yes"), IF(EXACT(INDEX(A:ZZ, ROW(), MATCH("VendorRank",$2:$2, 0)),1), "TRUE", "Set MKT Flag to No"), IF(NUMBERVALUE(INDEX(A:ZZ, ROW(), MATCH("VendorRank",$2:$2, 0)))>1,"TRUE","Set MKT Flag toYes")'
 mdm['Check Supply Chain Analyst'] = '=IF(EXACT(TRIM(VLOOKUP(INDEX(A:ZZ, ROW(), MATCH("KEY2",$2:$2, 0)), Query!A:AO, 41, 0)), TRIM( INDEX(A:ZZ, ROW(), MATCH("Supply Chain Analyst",$2:$2, 0)))), "TRUE", VLOOKUP(INDEX(A:ZZ, ROW(), MATCH("KEY2",$2:$2, 0)), Query!A:AO, 41, 0))'
 mdm['Remarks'] = ''
+print('Analysis columns added...')
 
 
 # File export
@@ -158,4 +176,3 @@ label_file_explorer = Label(window2, text = "Data Governance", width = 100, heig
 button_explore = Button(window2, text = "Exportar archivo", command = export_file).pack()
 window2.mainloop()
 
-writer = pd.ExcelWriter(export_file_path ,engine='xlsxwriter')
