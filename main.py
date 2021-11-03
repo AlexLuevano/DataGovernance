@@ -1,3 +1,4 @@
+from openpyxl.reader.excel import load_workbook
 import pandas as pd
 import numpy as np
 from tkinter import *
@@ -19,7 +20,7 @@ def browse_files():
 
 def export_file():
     global export_file_path
-    export_file_path = filedialog.asksaveasfilename(defaultextension = '.xlsx',initialdir = "/Desktop", title = "Guardar archivo como:", filetypes = (("Excel Files","*.xlsx*"),(".csv Files","*.csv*"),("all files","*.*")))
+    export_file_path = filedialog.asksaveasfilename(defaultextension = '.xlsm',initialdir = "/Desktop", title = "Guardar archivo como:", filetypes = (("Excel Files","*.xlsm*"),(".csv Files","*.csv*"),("all files","*.*")))
     with pd.ExcelWriter(export_file_path,engine='openpyxl') as writer:
         mdm.to_excel(writer, sheet_name='Entities', index=False)
         query.to_excel(writer, sheet_name='Query',index=False)
@@ -29,6 +30,9 @@ def export_file():
     #workbook.filename = new_name
     #workbook.add_vba_project('./vbaProject.bin')
     writer.save
+    wb = load_workbook(export_file_path)
+    ent_sheet = wb['Entities']
+    ent_sheet.insert_rows(1)
     #writer = pd.ExcelWriter()
     #mdm.to_excel(writer, sheet_name = 'Entities', index = False, header=True)
     #query.to_excel(writer, sheet_name = 'Query', index = False, header = True)
@@ -131,7 +135,7 @@ try:
 except:
         raise Exception('Error at reading MDM file. Please check file and try again. Finishing execution.')
         sys.exit(1)
-query = db_connect()
+
 mdm['KEY'] = '=CONCATENATE(INDEX(A:AAB, ROW(), MATCH("Stock Keeping Unit",$2:$2, 0)), "|",MID(INDEX(A:AAB, ROW(), MATCH("Vendor Ownership ID",$2:$2, 0)), 1, FIND("-", INDEX(A:AAB, ROW(), MATCH("Vendor Ownership ID",$2:$2, 0)))-1))'
 mdm['KEY2'] = '=CONCATENATE(INDEX(A:AAB,ROW(),MATCH("Stock Keeping Unit",$2:$2,0)),"|",MID(INDEX(A:AAB,ROW(),MATCH("Vendor Ownership ID",$2:$2,0)),1,FIND("-",INDEX(A:AAB,ROW(),MATCH("Vendor Ownership ID",$2:$2,0)))-1),"|",INDEX(A:AAB,ROW(),MATCH("Vendor DCs.POV ID",$2:$2,0)))'
 mdm['Ap Ref'] = '=IF(EXACT(SUBSTITUTE(INDEX(A:ZZ, ROW(), MATCH("Vendor Ownership ID",$2:$2, 0)),"-USA", ""), INDEX(A:ZZ, ROW(), MATCH("APREF",$2:$2, 0))), "TRUE", "Fix AP Ref")'
@@ -166,7 +170,7 @@ mdm['Check Marketing Flag'] = '=IF(EXACT(INDEX(A:ZZ, ROW(), MATCH("Marketing Fla
 mdm['Check Supply Chain Analyst'] = '=IF(EXACT(TRIM(VLOOKUP(INDEX(A:ZZ, ROW(), MATCH("KEY2",$2:$2, 0)), Query!A:AO, 41, 0)), TRIM( INDEX(A:ZZ, ROW(), MATCH("Supply Chain Analyst",$2:$2, 0)))), "TRUE", VLOOKUP(INDEX(A:ZZ, ROW(), MATCH("KEY2",$2:$2, 0)), Query!A:AO, 41, 0))'
 mdm['Remarks'] = ''
 print('Analysis columns added...')
-
+query = db_connect()
 
 # File export
 window2 = Tk()
