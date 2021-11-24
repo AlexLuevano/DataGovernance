@@ -1,9 +1,11 @@
 from openpyxl.reader.excel import load_workbook
+from openpyxl.workbook.workbook import Workbook
 import pandas as pd
 import numpy as np
 from tkinter import *
 from tkinter import filedialog
 import openpyxl
+from openpyxl.utils.dataframe import dataframe_to_rows
 import pyodbc
 from typing import Optional,List
 import sys
@@ -21,22 +23,41 @@ def browse_files():
 def export_file():
     global export_file_path
     export_file_path = filedialog.asksaveasfilename(defaultextension = '.xlsm',initialdir = "/Desktop", title = "Guardar archivo como:", filetypes = (("Excel Files","*.xlsm*"),(".csv Files","*.csv*"),("all files","*.*")))
+    
+    wb1 = openpyxl.load_workbook(f'{filename}',keep_vba=True)
+    ws1 = wb1['Entities']
+    
+    wb2 = Workbook()
+    ws2 = wb2.active
+
+    for r in dataframe_to_rows(mdm,index=False,header=True):
+            ws2.append(r)
+    wb2.save("temp.xlsm")
+    
     with pd.ExcelWriter(export_file_path,engine='openpyxl') as writer:
-        mdm.to_excel(writer, sheet_name='Entities', index=False)
-        query.to_excel(writer, sheet_name='Query',index=False)
-    workbook = writer.book
+
+    # Forma "pandesca" de pasar df a excel
+        #mdm.to_excel(writer, sheet_name = 'Entities', index = False, header=True)
+        #query.to_excel(writer, sheet_name = 'Query', index = False, header = True)
+
+        #writer.book = wb1
+        #writer.sheets = dict((ws1.title,ws1) for ws1 in wb1.worksheets) 
+        #writer.vba_archive = wb1
+        # .vba_archive
+        #writer.save()
+
+
     #base = os.path.splitext(export_file_path)[0]
     #new_name = os.rename(export_file_path,base+'.xlsm')
     #workbook.filename = new_name
     #workbook.add_vba_project('./vbaProject.bin')
-    writer.save
-    wb = load_workbook(export_file_path)
-    ent_sheet = wb['Entities']
-    ent_sheet.insert_rows(1)
+    
+    #wb = load_workbook(export_file_path)
+    #ent_sheet = wb['Entities']
+    #ent_sheet.insert_rows(1)
     #writer = pd.ExcelWriter()
-    #mdm.to_excel(writer, sheet_name = 'Entities', index = False, header=True)
-    #query.to_excel(writer, sheet_name = 'Query', index = False, header = True)
-    print('File was succesfully filled and saved on the chosen path')
+
+        print('File was succesfully filled and saved on the chosen path')
     window2.destroy()
 
 def db_connect() -> pd.DataFrame:
@@ -125,16 +146,15 @@ window.mainloop()
 
 print('Reading MDM file...')
 try:
-        #wb = openpyxl.load_workbook(f'{filename}',keep_vba=True)
-        #ws = wb['Entities']
-        mdm = pd.read_excel(f'{filename}',sheet_name='Entities', header = 1, index_col = False,na_filter= False)
-        skus_list = list(mdm['Stock Keeping Unit'])
-        skus_list_string = str(skus_list)
-        skus = skus_list_string[1:-1]
-        print('MDM file read successfully...')
+        
+    mdm = pd.read_excel(f'{filename}',sheet_name='Entities', header = 1, index_col = False,na_filter= False)
+    skus_list = list(mdm['Stock Keeping Unit'])
+    skus_list_string = str(skus_list)
+    skus = skus_list_string[1:-1]
+    print('MDM file read successfully...')
 except:
-        raise Exception('Error at reading MDM file. Please check file and try again. Finishing execution.')
-        sys.exit(1)
+    raise Exception('Error at reading MDM file. Please check file and try again. Finishing execution.')
+    sys.exit(1)
 
 mdm['KEY'] = '=CONCATENATE(INDEX(A:AAB, ROW(), MATCH("Stock Keeping Unit",$2:$2, 0)), "|",MID(INDEX(A:AAB, ROW(), MATCH("Vendor Ownership ID",$2:$2, 0)), 1, FIND("-", INDEX(A:AAB, ROW(), MATCH("Vendor Ownership ID",$2:$2, 0)))-1))'
 mdm['KEY2'] = '=CONCATENATE(INDEX(A:AAB,ROW(),MATCH("Stock Keeping Unit",$2:$2,0)),"|",MID(INDEX(A:AAB,ROW(),MATCH("Vendor Ownership ID",$2:$2,0)),1,FIND("-",INDEX(A:AAB,ROW(),MATCH("Vendor Ownership ID",$2:$2,0)))-1),"|",INDEX(A:AAB,ROW(),MATCH("Vendor DCs.POV ID",$2:$2,0)))'
